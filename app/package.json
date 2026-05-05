@@ -1,7 +1,8 @@
 {
-  "name": "app",
+  "name": "ziwei-ai",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "紫微知道 AI 命理工作台",
   "type": "module",
   "scripts": {
     "dev": "vite",

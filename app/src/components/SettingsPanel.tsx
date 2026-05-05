@@ -397,7 +397,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
         {/* 隐私提示 */}
         <p className="text-xs text-text-muted text-center">
-          API Key 仅保存在你的浏览器本地，不会上传到任何服务器。
+          {needsClientApiKey
+            ? '当前厂商的 API Key 仅保存在你的浏览器本地，不会上传到服务器。'
+            : '当前 Coding Plan Key 由服务器配置文件托管，浏览器端不会保存平台 Key。'
+          }
         </p>
       </div>
     </div>

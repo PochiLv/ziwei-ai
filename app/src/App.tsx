@@ -107,7 +107,7 @@ export default function App() {
                 </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-text-muted">
-                API Key 保存在本机浏览器；后续开放外部用户时再切到服务端代理和额度系统。
+                Coding Plan Key 由服务器配置文件托管；开放外部用户时再接账号、额度和订单系统。
               </p>
             </div>
 
@@ -375,14 +375,14 @@ function WelcomePanel() {
           一套能直接部署到服务器的紫微斗数 AI 工作台
         </h2>
         <p className="mt-5 max-w-xl text-base leading-8 text-text-secondary">
-          先保留现有排盘、流年、K 线、合盘和分享功能，把页面整理成 PC 端更顺手的工作台。模型 Key 先由你自己配置；等要开放给外部用户，再接账号、订单、额度和服务端模型代理。
+          在 iztro 排盘能力之上，整理出更适合 PC 看盘的工作台：运限叠盘、AI 解读、K 线、合盘和分享都放在同一个自用部署版本里。模型 Key 先由服务器托管，后续再接账号、订单和额度系统。
         </p>
         <div className="mt-8 grid max-w-xl grid-cols-2 gap-3">
           {[
             ['PC 优先', '大屏工作区、侧边导航、内容区滚动'],
             ['手机可用', '移动端顶部栏与底部导航自动切换'],
             ['百炼接入', '内置百炼按量与 Coding Plan 端点'],
-            ['二期预留', '注册、充值、额度、后台架构已留 TODO'],
+            ['二期预留', '注册、充值、额度、后台能力已留入口'],
           ].map(([title, desc]) => (
             <div key={title} className="rounded-lg border border-white/[0.07] bg-white/[0.035] p-4">
               <h3 className="text-sm font-medium text-text">{title}</h3>
@@ -401,7 +401,7 @@ function MePanel({ onOpenSettings }: { onOpenSettings: () => void }) {
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-slate-900">我的</h2>
         <p className="mt-1 text-sm text-slate-500">
-          当前是一期开源自用模式。模型配置、账户体系、充值额度和后台能力后续都可以从这里扩展。
+          当前是独立自用部署版本。模型配置、账户体系、充值额度和后台能力后续都可以从这里扩展。
         </p>
       </div>
 
@@ -412,7 +412,7 @@ function MePanel({ onOpenSettings }: { onOpenSettings: () => void }) {
         >
           <div className="text-sm font-semibold text-amber-800">模型设置</div>
           <div className="mt-1 text-xs leading-5 text-amber-700">
-            配置 Coding Plan API Key、BaseURL、模型名与联网搜索。
+            查看 Coding Plan 服务器托管配置，或切换其他模型、BaseURL 与联网搜索。
           </div>
         </button>
 

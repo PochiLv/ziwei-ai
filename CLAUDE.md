@@ -1,6 +1,6 @@
-# 紫微斗数 App (Zi Wei Dou Shu)
+# 紫微知道 (Ziwei AI)
 
-开源的紫微斗数命盘工具，精准排盘 + AI 深度解读，支持自部署和多模型切换。
+独立自用部署的紫微斗数 AI 工作台，支持 PC 看盘、运限叠盘、AI 解读和服务器托管 Coding Plan Key。
 
 > 设计方案：[docs/plans/2026-01-04-ziwei-app-design.md](docs/plans/2026-01-04-ziwei-app-design.md)
 

@@ -1,59 +1,63 @@
-# 部署与二期 TODO
+# 部署记录与后续路线图
 
-这份 TODO 先把需要你醒来确认的事项集中放在这里。第一期先做成可部署自用版本；二期再考虑开放注册、充值和额度。
+这份文档记录紫微知道当前自用部署状态，以及后续开放给外部用户前需要补齐的能力。
 
-## 需要你确认
+## 已完成
 
-- 百炼 API 类型：你当前确认使用 Coding Plan；第一期默认厂商已切到 `Coding Plan (OpenAI 兼容)`。
-- Coding Plan 的实际模型名：已确认并默认使用 `qwen3.6-plus`。
-- 你优先使用 OpenAI 兼容还是 Claude 兼容：百炼按量和 Coding Plan 的两种入口都已放进设置面板。
-- 服务器环境：系统版本、是否已有 Nginx、域名是否已备案和解析。
-- 是否需要 HTTPS：正式给外部访问时建议用 HTTPS，后续可接 Certbot 或云厂商证书。
-- 第一版是否需要一个简单访问密码：如果网址可能被别人访问，建议先加一层 Nginx Basic Auth。
-- 是否保留浏览器本地保存 API Key：自用没问题，对外开放必须改服务端代理。
+- 域名：`ziwei.snowfish.love`
+- HTTPS：已通过 Certbot 配置。
+- 访问密码：已通过 Nginx Basic Auth 开启。
+- 静态站点：Nginx 托管 `/var/www/ziwei`。
+- Coding Plan 代理：Node 服务 `ziwei-codingplan-proxy.service`。
+- 服务器密钥配置：`/etc/ziwei/codingplan.env`。
+- 前端默认模型：`Coding Plan (OpenAI 兼容)` + `qwen3.6-plus`。
+- 浏览器端默认不再要求填写 Coding Plan API Key。
+- PC 端看盘界面：浅色高对比宫格，支持大限、流年、流月、流日。
 
-## 第一期范围
+## 服务器密钥配置
 
-- PC 端打开：工作台布局，左侧导航，右侧内容区。
-- 手机端打开：顶部品牌栏，底部功能导航。
-- 功能保持不变：命盘解读、年度运势、人生 K 线、双人合盘、分享卡片。
-- 命盘排盘：基于 iztro `horoscope()` 支持大限、流年、流月、流日叠盘。
-- 视觉方向：以浅色纸面、高对比文字、清晰宫格为主，避免深紫黑背景影响看盘。
-- 模型设置：内置百炼按量 API 与 Coding Plan 的 OpenAI / Claude 兼容端点。
-- 部署方式：构建静态 `dist/`，通过 Nginx 或静态托管访问。
+在服务器编辑：
 
-## 第一期部署清单
-
-- 在服务器安装 Node.js LTS。
-- 拉取或上传项目代码。
-- 进入 `app` 目录执行 `npm install`。
-- 执行 `npm run build`。
-- 将 `dist/` 目录交给 Nginx 托管。
-- 配置 `/api/codingplan/openai/` 和 `/api/codingplan/anthropic/` 反向代理，否则浏览器直连 Coding Plan 会出现 CORS / Failed to fetch。
-- 浏览器访问域名，进入设置面板填百炼 API Key。
-- 生成一个命盘，测试 AI 解读流式输出。
-
-## 建议的服务器目录
-
-```text
-/var/www/ziwei/dist
-/etc/nginx/sites-available/ziwei.conf
-/etc/nginx/sites-enabled/ziwei.conf
+```bash
+sudo nano /etc/ziwei/codingplan.env
 ```
 
-## Nginx Basic Auth 可选
+内容示例：
 
-如果第一期只想自己访问，但服务器域名是公网可达，建议先加访问密码。
-
-示例：
-
-```nginx
-location / {
-  auth_basic "Ziwei Private";
-  auth_basic_user_file /etc/nginx/.ziwei_htpasswd;
-  try_files $uri $uri/ /index.html;
-}
+```bash
+CODINGPLAN_API_KEY=请填你的真实 Key
+CODINGPLAN_OPENAI_BASE=https://coding.dashscope.aliyuncs.com/v1
+CODINGPLAN_ANTHROPIC_BASE=https://coding.dashscope.aliyuncs.com/apps/anthropic
+CODINGPLAN_DEFAULT_MODEL=qwen3.6-plus
 ```
+
+代理服务每次请求都会读取这个文件。修改 API Key 后，通常不需要重启服务。
+
+## 日常发布
+
+本地构建：
+
+```bash
+npm install
+npm run build
+```
+
+上传 `dist/` 到服务器的 `/var/www/ziwei`，然后检查：
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl status ziwei-codingplan-proxy.service
+```
+
+## 一期继续优化
+
+- 看盘宫格继续压缩到更稳定的一屏显示。
+- 三方四正连线继续做视觉校准。
+- 增加更明确的模型错误提示：Key 缺失、模型不存在、额度不足、跨域失败。
+- 增加 `.env.example`，说明本地代理和服务器代理配置。
+- 增加 Docker 或一键部署脚本。
+- 增加 Playwright 截图回归，防止 PC 盘面再次溢出。
 
 ## 二期商业化架构
 
@@ -73,13 +77,13 @@ Web 前端
 推荐技术选型：
 
 - 前端：继续 React，后续可迁移 Next.js 方便 SEO 和服务端能力。
-- 后端：Node.js/NestJS、Hono、Fastify 或 Python/FastAPI 都可以。
+- 后端：Node.js/NestJS、Hono、Fastify 或 Python/FastAPI。
 - 数据库：PostgreSQL。
 - 缓存与限流：Redis。
 - 支付：微信支付、支付宝，或先人工充值。
 - 鉴权：邮箱/手机号注册，JWT + Refresh Token。
 
-## 二期核心表设计草案
+## 二期核心表草案
 
 ```text
 users
@@ -145,20 +149,10 @@ GET  /api/admin/users
 GET  /api/admin/requests
 ```
 
-## 后端代理调用模型时要做的事
+## 对外开放前必须补齐
 
-- 从服务端环境变量读取百炼 API Key。
-- 不把平台 Key 返回给浏览器。
-- 每次调用前检查用户额度。
-- 预估或固定扣费，调用成功后入账。
-- 对单用户、单 IP、单功能做频控。
+- 平台 API Key 只留在服务端。
+- 调用前校验登录态、余额和频控。
+- 每次扣费都写入额度流水。
 - 保存必要调用日志，避免保存过多隐私内容。
-- 给命理服务加免责声明。
-
-## 待优化
-
-- 将 ECharts、Markdown、分享图相关模块做代码分包，降低首屏 JS 体积。
-- 将 API Key 设置面板改成部署模式感知：自用模式显示本地 Key，商业模式隐藏 Key 输入。
-- 增加错误提示细节：模型不存在、Key 无效、余额不足、跨域失败。
-- 增加 `.env.example` 和 Docker 部署文件。
-- 增加 Playwright 截图回归测试。
+- 增加用户协议、隐私政策和命理预测免责声明。

@@ -1,135 +1,89 @@
 # 紫微知道
 
-开源的紫微斗数命盘工具，精准排盘 + AI 深度解读，支持自部署和多模型切换。
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/756c0de6-e31c-4166-913e-c2d0afd1cf15" />
+紫微知道是一个面向自用部署和后续商业化扩展的紫微斗数 AI 工作台。当前版本已经从原始开源页面发展为独立项目：保留 iztro 的排盘能力，重新组织 PC 工作台、移动端布局、模型接入和服务器部署方式。
 
-## 功能特性
+## 当前能力
 
-- **精准排盘** - 基于 iztro 库，中州派安星法，完整十二宫配置
-- **AI 命盘解读** - 传统命理师风格，结构化输出
-- **年度运势** - 限流叠宫技法，月度趋势分析
-- **双人合盘** - 四化互飞，姻缘匹配分析
-- **人生 K 线** - AI 决策 100 年运势走向，大运周期可视化
-- **分享卡片** - 命格金句卡，一键导出分享
+- PC 高密度看盘界面：浅色宫格、清晰文字、三方四正标记与连线。
+- 移动端自适应：手机访问自动切换顶部栏和底部导航。
+- 运限叠盘：支持大限、流年、流月、流日切换。
+- AI 服务：命盘解读、年度运势、人生 K 线、双人合盘、分享卡片。
+- 模型接入：支持百炼按量、Coding Plan OpenAI 兼容、Coding Plan Claude 兼容，以及自定义兼容接口。
+- 一期自用部署：服务器保存 Coding Plan API Key，浏览器无需手动输入平台密钥。
+- 二期预留：账号体系、充值额度、服务套餐、运营后台可以继续扩展。
 
-## 技术栈
+## 与原开源项目的差异
 
-- **前端**: React 18 + TypeScript + Vite
-- **样式**: Tailwind CSS + Glassmorphism
-- **图表**: Recharts (K线) + ECharts (雷达图)
-- **排盘**: [iztro](https://github.com/SylarLong/iztro)
-- **LLM**: 多模型适配 (Kimi / Gemini / Claude / DeepSeek / etc)
+- 产品定位从“开源命盘工具”调整为“紫微知道 AI 命理工作台”。
+- UI 从偏展示型页面改为 PC 优先的工作台，并保留手机端可用体验。
+- 命盘区改成接近传统看盘习惯的浅色高对比宫格。
+- 新增大限、流年、流月、流日运限叠盘入口。
+- 新增 Coding Plan 服务端代理，避免在浏览器暴露核心 API Key。
+- 增加“我的”入口，为后续账户、充值、额度和后台能力留位置。
 
-## 快速开始
+## 本地开发
 
 ```bash
-# 克隆仓库
-git clone https://github.com/ruijayfeng/ziwei.git
-cd ziwei/app
-
-# 安装依赖
+cd app
 npm install
-
-# 启动开发服务器
 npm run dev
+```
 
-# 构建生产版本
+默认访问：
+
+```text
+http://127.0.0.1:5173/
+```
+
+## 生产构建
+
+```bash
+cd app
 npm run build
 ```
 
-## 部署到 Vercel
+构建产物位于：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ruijayfeng/ziwei&project-name=ziwei&root-directory=app)
-
-或手动部署：
-
-1. Fork 本仓库
-2. 在 Vercel 导入项目
-3. 设置 Root Directory 为 `app`
-4. 部署完成
-
-## 部署到 Cloudflare Pages
-
-[![Deploy to Cloudflare Pages](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ruijayfeng/ziwei)
-
-或手动部署：
-
-1. Fork 本仓库
-2. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/) → Pages → Create a project
-3. 连接 GitHub 并选择仓库
-4. 配置构建设置：
-   - **Framework preset**: Vite
-   - **Root directory**: `app`
-   - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-5. 部署完成
-
-## 配置说明
-
-在应用内点击设置图标，配置 LLM API：
-
-推荐 Kimi ，虽然不是最好用的，但是我最喜欢的
-杨植麟："游戏尚未结束，Kimi不下牌桌，Kimi不打算认输。"
-
-| 模型 | API Key 获取 |
-|------|-------------|
-| Kimi | [moonshot.cn](https://platform.moonshot.cn/) |
-| Gemini | [ai.google.dev](https://ai.google.dev/) |
-| Claude | [anthropic.com](https://console.anthropic.com/) |
-| DeepSeek | [deepseek.com](https://platform.deepseek.com/) |
-
-也可配置任意 OpenAI 兼容 API。
-
-## 项目结构
-
+```text
+app/dist/
 ```
+
+## 部署状态
+
+当前线上自用版本部署在：
+
+```text
+https://ziwei.snowfish.love
+```
+
+当前部署形态：
+
+- Nginx 托管静态文件：`/var/www/ziwei`
+- Node 代理服务：`ziwei-codingplan-proxy.service`
+- 代理配置文件：`/etc/ziwei/codingplan.env`
+- API 路由：
+  - `/api/codingplan/openai/`
+  - `/api/codingplan/anthropic/`
+- Nginx Basic Auth 已开启。
+- HTTPS 已通过 Certbot 配置。
+
+服务器上的 `CODINGPLAN_API_KEY` 只放在 `/etc/ziwei/codingplan.env`，不要提交到 GitHub。
+
+## 目录结构
+
+```text
 app/
+├── server/                 # Coding Plan 服务端代理
 ├── src/
-│   ├── components/     # UI 组件
-│   │   ├── chart/      # 命盘展示
-│   │   ├── kline/      # 人生 K 线
-│   │   ├── fortune/    # 年度运势
-│   │   ├── match/      # 双人合盘
-│   │   └── share/      # 分享卡片
-│   ├── lib/
-│   │   ├── astro.ts    # 排盘封装
-│   │   ├── llm.ts      # LLM 适配层
-│   │   └── fortune-score.ts  # K线算法
-│   ├── knowledge/      # 紫微知识库
-│   └── stores/         # 状态管理
+│   ├── components/         # UI 与业务组件
+│   ├── knowledge/          # 紫微知识库
+│   ├── lib/                # 排盘、LLM、评分等封装
+│   └── stores/             # 状态管理
+├── DEPLOYMENT_TODO.md      # 部署记录与后续路线图
 └── package.json
 ```
 
-## 截图预览
-
-1. 信息填写页面
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/7e7cce4f-11bd-4cbd-beee-7e6fc0c1280a" />
-
-2. 命盘展示
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/756c0de6-e31c-4166-913e-c2d0afd1cf15" />
-
-3. 解读展示
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/3f151263-587d-4fdc-8017-e9eabdf6b47f" />
-
-4. 年度运势
-<img width="1646" height="1990" alt="image" src="https://github.com/user-attachments/assets/a79ba231-2e8f-4b08-a510-7eb456e40cbc" />
-
-5. 人生 K 线
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/09b64812-d247-4189-912b-0abea6051881" />
-
-6. 双人合盘
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/88407e8a-7a7b-4be4-ba5d-20eaaddcd996" />
-
-7. 黑金箔卡
-<img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/921faecb-a35f-4386-85bf-89abf03f69d9" />
-
-
-
-## 开源协议
-
-MIT License
-
 ## 致谢
-- [ClaudeCode](https://www.aicodemirror.com/register?invitecode=R2A5HD) - ClaudeCode 镜像站 国内加速 注册即送额度
-- [iztro](https://github.com/SylarLong/iztro) - 紫微斗数排盘库
-- [lifekline](https://github.com/AICryptoHK/lifekline) - K线设计参考
+
+- [iztro](https://github.com/SylarLong/iztro) - 紫微斗数排盘能力
+- [lifekline](https://github.com/AICryptoHK/lifekline) - 人生 K 线视觉参考

@@ -1,16 +1,24 @@
-# 紫微知道
+# 紫微知道 App
 
-紫微斗数 AI 命理工作台。第一期目标是自用部署：保留现有排盘、命盘解读、年度运势、人生 K 线、双人合盘、分享卡片等功能，通过浏览器配置模型 API Key 后即可在服务器网址访问。
+这是紫微知道的前端应用和轻量服务端代理。当前版本以自用部署为目标，同时为后续开放注册、充值、额度和后台管理预留结构。
 
-## 当前版本
+## 技术栈
 
 - React 19 + TypeScript + Vite
-- PC 端工作台布局：左侧导航、顶部状态栏、右侧内容区滚动
-- 移动端自适应：顶部品牌栏、底部功能导航
-- 命盘区支持按目标日期切换大限、流年、流月、流日叠盘
-- 盘面改为浅色高对比布局，优先保证看盘信息密度和可读性
-- 内置百炼按量 API 与 Coding Plan 的 OpenAI / Claude 兼容配置
-- API Key 仅保存在当前浏览器本地，适合第一期自用
+- Tailwind CSS
+- iztro 紫微斗数排盘
+- Recharts / ECharts 可视化
+- Coding Plan 服务端代理
+
+## 功能
+
+- 命盘解读：排盘、宫位信息、AI 批注。
+- 运限叠盘：按目标日期切换大限、流年、流月、流日。
+- 年度运势：结合流年趋势生成提醒。
+- 人生 K 线：以阶段评分展示百岁起伏。
+- 双人合盘：输入两人信息后生成关系分析。
+- 分享卡片：生成适合传播的命格素材。
+- 我的：承载模型设置与后续账号、充值、套餐、后台入口。
 
 ## 本地开发
 
@@ -25,108 +33,64 @@ npm run dev
 http://127.0.0.1:5173/
 ```
 
+本地开发时，Vite 会把 `/api/codingplan/openai/` 和 `/api/codingplan/anthropic/` 代理到本机 Node 服务或远端配置，具体以 `vite.config.ts` 为准。
+
 ## 生产构建
 
 ```bash
 npm run build
 ```
 
-构建产物位于：
+构建产物：
 
 ```text
 dist/
 ```
 
-可以用任意静态网站服务器部署 `dist` 目录。
+## 服务器部署
 
-## 推荐部署方式
+当前推荐形态：
 
-### Nginx
-
-```nginx
-server {
-  listen 80;
-  server_name your-domain.com;
-
-  root /var/www/ziwei/dist;
-  index index.html;
-
-  location / {
-    try_files $uri $uri/ /index.html;
-  }
-
-  location /api/codingplan/openai/ {
-    proxy_pass https://coding.dashscope.aliyuncs.com/v1/;
-    proxy_ssl_server_name on;
-    proxy_set_header Host coding.dashscope.aliyuncs.com;
-    proxy_set_header Authorization $http_authorization;
-    proxy_set_header Content-Type $content_type;
-  }
-
-  location /api/codingplan/anthropic/ {
-    proxy_pass https://coding.dashscope.aliyuncs.com/apps/anthropic/;
-    proxy_ssl_server_name on;
-    proxy_set_header Host coding.dashscope.aliyuncs.com;
-    proxy_set_header x-api-key $http_x_api_key;
-    proxy_set_header anthropic-version $http_anthropic_version;
-    proxy_set_header Content-Type $content_type;
-  }
-}
+```text
+Browser
+  -> Nginx 静态站点
+  -> /api/codingplan/*
+  -> Node proxy
+  -> Coding Plan API
 ```
 
-部署步骤：
+服务器文件位置：
+
+```text
+/var/www/ziwei                     # 静态站点
+/opt/ziwei/codingplan-proxy.mjs    # Node 代理
+/etc/ziwei/codingplan.env          # API Key 配置
+```
+
+`/etc/ziwei/codingplan.env` 示例：
 
 ```bash
-npm install
-npm run build
-sudo mkdir -p /var/www/ziwei
-sudo cp -r dist /var/www/ziwei/
-sudo nginx -t
-sudo systemctl reload nginx
+CODINGPLAN_API_KEY=请在服务器上填写
+CODINGPLAN_OPENAI_BASE=https://coding.dashscope.aliyuncs.com/v1
+CODINGPLAN_ANTHROPIC_BASE=https://coding.dashscope.aliyuncs.com/apps/anthropic
+CODINGPLAN_DEFAULT_MODEL=qwen3.6-plus
 ```
 
-### Docker 可选方案
-
-后续如果你希望 Docker 部署，可以新增 `Dockerfile`，用 Node 构建后交给 Nginx 镜像托管静态文件。
+代理服务会在每次请求时读取配置文件，修改 Key 后通常不需要重启服务。
 
 ## 模型配置
 
-进入页面后点击「设置模型」，选择：
+默认推荐：
 
-- `百炼按量 (OpenAI 兼容)`
-- `百炼按量 (Claude 兼容)`
-- `Coding Plan (OpenAI 兼容)`
-- `Coding Plan (Claude 兼容)`
-- 或其他兼容服务
+- Provider: `Coding Plan (OpenAI 兼容)`
+- Model: `qwen3.6-plus`
+- API Key: 由服务器 `/etc/ziwei/codingplan.env` 提供
 
-百炼按量默认端点已内置：
+如果改用百炼按量、自定义 OpenAI 兼容服务或 Claude 兼容服务，可以在页面的「设置模型」里调整。只有非服务器托管模式才需要在浏览器填写 API Key。
 
-```text
-OpenAI 兼容: https://dashscope.aliyuncs.com/compatible-mode/v1
-Claude 兼容: https://dashscope.aliyuncs.com/apps/anthropic/v1
-```
+## 安全边界
 
-Coding Plan 默认端点也已保留：
-
-```text
-OpenAI 兼容: https://coding.dashscope.aliyuncs.com/v1
-Claude 兼容: https://coding.dashscope.aliyuncs.com/apps/anthropic
-默认模型: qwen3.6-plus
-```
-
-如果你的百炼后台展示了不同模型名或不同 endpoint，可在「高级设置」里覆盖 `BaseURL` 和 `Model`。对外网站建议优先使用百炼按量 API，Coding Plan 是否适合你的业务场景需要按阿里云套餐规则再确认。
-
-## 安全说明
-
-第一期是自用版本，API Key 保存在浏览器 `localStorage`，不会提交到仓库，也不会上传到你自己的服务器。但如果未来提供给外部用户使用，不能继续让前端直连模型平台。
-
-对外开放时应改成：
-
-- 用户只访问你的网站
-- 你的后端保存平台 API Key
-- 前端调用你的后端接口
-- 后端校验登录、额度、频控，再代理调用大模型
-
-## 后续 TODO
-
-详见 [DEPLOYMENT_TODO.md](./DEPLOYMENT_TODO.md)。
+- 不要把真实 API Key 写入仓库。
+- 自用阶段用 Nginx Basic Auth 控制访问。
+- 对外开放前，需要增加用户登录、额度账本、频控、订单和调用日志。
+- 命理预测服务需要补充用户协议与免责声明。
