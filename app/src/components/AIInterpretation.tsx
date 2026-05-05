@@ -3,12 +3,12 @@
    丝滑流式输出 + 书法字体 + Markdown 渲染
    ============================================================ */
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useChartStore, useSettingsStore, useContentCacheStore } from '@/stores'
 import { extractKnowledge, buildPromptContext } from '@/knowledge'
-import { streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
+import { requiresClientApiKey, streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
 import { Button } from '@/components/ui'
 
 /* ------------------------------------------------------------
@@ -113,7 +113,15 @@ export function AIInterpretation() {
   const { chart, birthInfo } = useChartStore()
   const { provider, providerSettings, enableThinking, enableWebSearch, searchApiKey } = useSettingsStore()
   const { aiInterpretation, setAiInterpretation } = useContentCacheStore()
-  const currentSettings = providerSettings[provider]
+  const currentSettings = useMemo(() => (
+    providerSettings[provider] || {
+      apiKey: '',
+      customBaseUrl: '',
+      customModel: '',
+    }
+  ), [provider, providerSettings])
+  const needsClientApiKey = requiresClientApiKey(provider, currentSettings.customBaseUrl || undefined)
+  const hasApiCredential = !needsClientApiKey || !!currentSettings.apiKey
 
   // 显示的文本（逐字输出）
   const [displayText, setDisplayText] = useState('')
@@ -177,7 +185,7 @@ export function AIInterpretation() {
 
   const handleInterpret = useCallback(async () => {
     if (!chart || !birthInfo) return
-    if (!currentSettings.apiKey) {
+    if (!hasApiCredential) {
       setError('请先在设置中配置 API Key')
       return
     }
@@ -244,7 +252,7 @@ ${contextStr}
       loadingRef.current = false
       setLoading(false)
     }
-  }, [chart, birthInfo, provider, currentSettings, enableThinking, enableWebSearch, searchApiKey, startAnimation, setAiInterpretation])
+  }, [chart, birthInfo, provider, currentSettings, hasApiCredential, enableThinking, enableWebSearch, searchApiKey, startAnimation, setAiInterpretation])
 
   if (!chart) return null
 
@@ -280,7 +288,7 @@ ${contextStr}
         </h2>
         <Button
           onClick={handleInterpret}
-          disabled={loading || !currentSettings.apiKey}
+          disabled={loading || !hasApiCredential}
           size="sm"
           variant="gold"
         >
@@ -289,7 +297,7 @@ ${contextStr}
               <span className="w-3 h-3 border-2 border-night border-t-transparent rounded-full animate-spin" />
               解读中
             </span>
-          ) : currentSettings.apiKey ? '开始解读' : '请先配置 API'}
+          ) : hasApiCredential ? '开始解读' : '请先配置 API'}
         </Button>
       </div>
 
@@ -301,7 +309,7 @@ ${contextStr}
       )}
 
       {/* 未配置提示 */}
-      {!currentSettings.apiKey && !displayText && (
+      {!hasApiCredential && !displayText && (
         <div className="text-text-muted text-sm py-8 text-center">
           <div className="text-3xl mb-3 opacity-30">☆</div>
           请先在设置中配置 AI 模型的 API Key，即可获得深度命盘解读。

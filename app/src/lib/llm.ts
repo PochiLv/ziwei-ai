@@ -1,9 +1,18 @@
 /* ============================================================
    多模型适配层
-   支持 Kimi / Gemini / Claude / DeepSeek / 自定义 OpenAI 兼容
+   支持 Kimi / Gemini / Claude / DeepSeek / 百炼 / Coding Plan / 自定义兼容接口
    ============================================================ */
 
-export type ModelProvider = 'kimi' | 'gemini' | 'claude' | 'deepseek' | 'custom'
+export type ModelProvider =
+  | 'bailian-openai'
+  | 'bailian-claude'
+  | 'codingplan-openai'
+  | 'codingplan-claude'
+  | 'kimi'
+  | 'gemini'
+  | 'claude'
+  | 'deepseek'
+  | 'custom'
 
 export interface LLMConfig {
   provider: ModelProvider
@@ -31,6 +40,22 @@ export interface StreamCallbacks {
    ------------------------------------------------------------ */
 
 export const PROVIDER_CONFIGS: Record<ModelProvider, { baseUrl: string; defaultModel: string }> = {
+  'bailian-openai': {
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    defaultModel: 'qwen-plus',
+  },
+  'bailian-claude': {
+    baseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic/v1',
+    defaultModel: 'qwen-plus',
+  },
+  'codingplan-openai': {
+    baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+    defaultModel: 'qwen3.6-plus',
+  },
+  'codingplan-claude': {
+    baseUrl: 'https://coding.dashscope.aliyuncs.com/apps/anthropic',
+    defaultModel: 'qwen3.6-plus',
+  },
   kimi: {
     baseUrl: 'https://api.moonshot.cn/v1',
     defaultModel: 'kimi-k2-0905-preview',
@@ -51,6 +76,32 @@ export const PROVIDER_CONFIGS: Record<ModelProvider, { baseUrl: string; defaultM
     baseUrl: '',
     defaultModel: '',
   },
+}
+
+export function isServerManagedProvider(provider: ModelProvider, baseUrl?: string): boolean {
+  return (provider === 'codingplan-openai' || provider === 'codingplan-claude') && !baseUrl
+}
+
+export function requiresClientApiKey(provider: ModelProvider, baseUrl?: string): boolean {
+  return !isServerManagedProvider(provider, baseUrl)
+}
+
+function resolveProviderBaseUrl(config: LLMConfig): string {
+  const providerConfig = PROVIDER_CONFIGS[config.provider]
+
+  if (config.baseUrl) {
+    return config.baseUrl
+  }
+
+  if (config.provider === 'codingplan-openai') {
+    return '/api/codingplan/openai'
+  }
+
+  if (config.provider === 'codingplan-claude') {
+    return '/api/codingplan/anthropic'
+  }
+
+  return providerConfig.baseUrl
 }
 
 /* ------------------------------------------------------------
@@ -143,15 +194,18 @@ async function extractSearchKeywords(
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
       return text.split('\n').map((s: string) => s.trim()).filter((s: string) => s.length > 0)
 
-    } else if (provider === 'claude') {
+    } else if (provider === 'claude' || provider === 'bailian-claude' || provider === 'codingplan-claude') {
       // Claude 非流式
-      const response = await fetch(`${baseUrl || providerConfig.baseUrl}/messages`, {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      }
+      if (apiKey) {
+        headers['x-api-key'] = apiKey
+      }
+      const response = await fetch(`${resolveProviderBaseUrl(config)}/messages`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
+        headers,
         body: JSON.stringify({
           model: model || providerConfig.defaultModel,
           max_tokens: 200,
@@ -167,13 +221,16 @@ async function extractSearchKeywords(
 
     } else {
       // OpenAI 兼容 (Kimi, DeepSeek, Custom)
-      const url = `${baseUrl || providerConfig.baseUrl}/chat/completions`
+      const url = `${resolveProviderBaseUrl(config)}/chat/completions`
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`
+      }
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify({
           model: model || providerConfig.defaultModel,
           messages: [
@@ -236,14 +293,14 @@ async function performSmartSearch(
 }
 
 /* ------------------------------------------------------------
-   OpenAI 兼容格式请求 (Kimi, DeepSeek, Custom)
+   OpenAI 兼容格式请求 (Kimi, DeepSeek, 百炼 OpenAI, Custom)
    ------------------------------------------------------------ */
 
 async function* streamOpenAICompatible(
   config: LLMConfig,
   messages: ChatMessage[]
 ): AsyncGenerator<string> {
-  const { provider, apiKey, baseUrl, model, enableThinking, enableWebSearch, searchApiKey } = config
+  const { provider, apiKey, model, enableThinking, enableWebSearch, searchApiKey } = config
   const providerConfig = PROVIDER_CONFIGS[provider]
 
   // 确定使用的模型（思考模式切换专用模型）
@@ -253,16 +310,26 @@ async function* streamOpenAICompatible(
       useModel = 'deepseek-v3.2-speciale'
     } else if (provider === 'kimi') {
       useModel = 'kimi-k2-thinking'
+    } else if (provider === 'bailian-openai') {
+      useModel = 'qwen-plus'
+    } else if (provider === 'codingplan-openai') {
+      useModel = 'qwen3.6-plus'
     }
   }
 
-  const url = `${baseUrl || providerConfig.baseUrl}/chat/completions`
+  const url = `${resolveProviderBaseUrl(config)}/chat/completions`
 
   // 构建请求体
   const requestBody: Record<string, unknown> = {
     model: useModel,
     messages,
     stream: true,
+  }
+
+  if (enableThinking && (provider === 'bailian-openai' || provider === 'codingplan-openai')) {
+    requestBody.extra_body = {
+      enable_thinking: true,
+    }
   }
 
   // Kimi 原生搜索
@@ -287,12 +354,16 @@ async function* streamOpenAICompatible(
     requestBody.messages = processedMessages
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`
+  }
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify(requestBody),
   })
 
@@ -412,14 +483,14 @@ async function* streamGemini(
 }
 
 /* ------------------------------------------------------------
-   Claude API 请求（支持 extended thinking）
+   Claude API 请求（支持 Anthropic 兼容 extended thinking）
    ------------------------------------------------------------ */
 
 async function* streamClaude(
   config: LLMConfig,
   messages: ChatMessage[]
 ): AsyncGenerator<string> {
-  const { apiKey, model, baseUrl, enableThinking, enableWebSearch, searchApiKey } = config
+  const { apiKey, model, enableThinking, enableWebSearch, searchApiKey } = config
   const providerConfig = PROVIDER_CONFIGS.claude
 
   // 提取系统消息
@@ -451,13 +522,17 @@ async function* streamClaude(
     }
   }
 
-  const response = await fetch(`${baseUrl || providerConfig.baseUrl}/messages`, {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'anthropic-version': '2023-06-01',
+  }
+  if (apiKey) {
+    headers['x-api-key'] = apiKey
+  }
+
+  const response = await fetch(`${resolveProviderBaseUrl(config)}/messages`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
+    headers,
     body: JSON.stringify(requestBody),
   })
 
@@ -513,8 +588,14 @@ export async function* streamChat(
     case 'claude':
       yield* streamClaude(config, messages)
       break
+    case 'bailian-claude':
+    case 'codingplan-claude':
+      yield* streamClaude(config, messages)
+      break
     case 'kimi':
     case 'deepseek':
+    case 'bailian-openai':
+    case 'codingplan-openai':
     case 'custom':
     default:
       yield* streamOpenAICompatible(config, messages)

@@ -29,7 +29,7 @@ import {
   generateKLinesWithLLM,
   type LifetimeKLinePoint,
 } from '@/lib/fortune-score'
-import { type LLMConfig } from '@/lib/llm'
+import { requiresClientApiKey, type LLMConfig } from '@/lib/llm'
 
 /* ============================================================
    自定义 Tooltip (深色玻璃态)
@@ -229,6 +229,7 @@ export function LifeKLine() {
       searchApiKey,
     }
   }, [provider, getCurrentSettings, enableThinking, enableWebSearch, searchApiKey])
+  const hasApiCredential = !requiresClientApiKey(llmConfig.provider, llmConfig.baseUrl) || !!llmConfig.apiKey
 
   /* ------------------------------------------------------------
      生成 K 线数据 (由 AI 决定涨跌)
@@ -243,7 +244,7 @@ export function LifeKLine() {
     try {
       let lifetime: LifetimeKLinePoint[]
 
-      if (llmConfig.apiKey) {
+      if (hasApiCredential) {
         // 使用 LLM 生成 (AI 决定涨跌)
         lifetime = await generateKLinesWithLLM(
           chart,
@@ -269,7 +270,7 @@ export function LifeKLine() {
     }
 
     setIsGenerating(false)
-  }, [chart, birthInfo, llmConfig, setKlineCache])
+  }, [chart, birthInfo, llmConfig, hasApiCredential, setKlineCache])
 
   /* ------------------------------------------------------------
      数据转换
@@ -346,7 +347,7 @@ export function LifeKLine() {
           >
             {isGenerating ? (progress || '生成中...') : '✨ AI 生成人生 K 线'}
           </button>
-          {!llmConfig.apiKey && (
+          {!hasApiCredential && (
             <p className="text-text-muted text-xs">提示：配置 API Key 可使用 AI 分析命盘生成</p>
           )}
         </div>

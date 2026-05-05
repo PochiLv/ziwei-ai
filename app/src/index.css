@@ -2,36 +2,36 @@
 
 /* ============================================================
    紫微斗数 App - 全局样式
-   色彩系统：深靛蓝夜空 + 暖琥珀点缀
+   色彩系统：清爽纸面 + 墨色文字 + 克制靛蓝
    ============================================================ */
 
 @theme {
-  /* 主色调 - 深邃夜空 */
-  --color-night: #0f0f23;
-  --color-night-light: #1a1b3a;
-  --color-night-lighter: #252747;
+  /* 主色调 - 纸面工作台 */
+  --color-night: #f6f8fb;
+  --color-night-light: #ffffff;
+  --color-night-lighter: #eef2f7;
 
-  /* 紫微星色 - 更偏紫的皇家气质 */
-  --color-star: #7c3aed;
-  --color-star-light: #a78bfa;
-  --color-star-dark: #6d28d9;
+  /* 紫微星色 - 克制靛蓝 */
+  --color-star: #4f46e5;
+  --color-star-light: #6366f1;
+  --color-star-dark: #3730a3;
 
-  /* 真金色 - 奢华命理风 */
-  --color-gold: #D4AF37;
-  --color-gold-light: #F4D03F;
-  --color-gold-dark: #B8860B;
-  --color-amber: #D4AF37;
-  --color-amber-light: #F4D03F;
-  --color-amber-dark: #B8860B;
+  /* 金色 - 用于命宫和重点 */
+  --color-gold: #b7791f;
+  --color-gold-light: #d69e2e;
+  --color-gold-dark: #975a16;
+  --color-amber: #b7791f;
+  --color-amber-light: #d69e2e;
+  --color-amber-dark: #975a16;
 
   /* 语义色 */
-  --color-fortune: #F4D03F;
-  --color-misfortune: #f87171;
-  --color-neutral: #94a3b8;
+  --color-fortune: #047857;
+  --color-misfortune: #be123c;
+  --color-neutral: #64748b;
 
   /* 文字色 */
-  --color-text: #f8fafc;
-  --color-text-secondary: #cbd5e1;
+  --color-text: #0f172a;
+  --color-text-secondary: #334155;
   --color-text-muted: #64748b;
 
   /* 毛玻璃 */
@@ -63,9 +63,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(124, 58, 237, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
-    linear-gradient(135deg, var(--color-night) 0%, var(--color-night-light) 50%, var(--color-night) 100%);
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
   color: var(--color-text);
 }
 
@@ -78,14 +76,12 @@ body {
    ============================================================ */
 
 .glass {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
 }
 
 .glass-glow {
@@ -172,7 +168,7 @@ body {
   height: 100%;
   pointer-events: none;
   overflow: hidden;
-  z-index: -1;
+  display: none;
 }
 
 .star-bg::before {
@@ -235,7 +231,7 @@ body {
   height: 100%;
   pointer-events: none;
   overflow: hidden;
-  z-index: -2;
+  display: none;
 }
 
 .aurora-bg::before {

@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm'
 import { useSettingsStore } from '@/stores'
 import { generateChart, type BirthInfo, type Gender } from '@/lib/astro'
 import { extractKnowledge, buildPromptContext } from '@/knowledge'
-import { streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
+import { requiresClientApiKey, streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
 import { Button, Select } from '@/components/ui'
 
 /* ------------------------------------------------------------
@@ -220,6 +220,7 @@ function PersonInput({ label, value, onChange }: PersonInputProps) {
 export function MatchAnalysis() {
   const { provider, providerSettings, enableThinking, enableWebSearch, searchApiKey } = useSettingsStore()
   const currentSettings = providerSettings[provider]
+  const hasApiCredential = !requiresClientApiKey(provider, currentSettings.customBaseUrl || undefined) || !!currentSettings.apiKey
 
   const [person1, setPerson1] = useState<BirthInfo>({
     year: 1990, month: 1, day: 1, hour: 12, gender: 'male',
@@ -232,7 +233,7 @@ export function MatchAnalysis() {
   const [error, setError] = useState<string | null>(null)
 
   const handleAnalyze = useCallback(async () => {
-    if (!currentSettings.apiKey) {
+    if (!hasApiCredential) {
       setError('请先在设置中配置 API Key')
       return
     }
@@ -295,7 +296,7 @@ ${context2}
     } finally {
       setLoading(false)
     }
-  }, [person1, person2, provider, currentSettings, enableThinking, enableWebSearch, searchApiKey])
+  }, [person1, person2, provider, currentSettings, hasApiCredential, enableThinking, enableWebSearch, searchApiKey])
 
   return (
     <div className="animate-fade-in space-y-8 max-w-6xl mx-auto">
@@ -331,7 +332,7 @@ ${context2}
 
           <Button
             onClick={handleAnalyze}
-            disabled={loading || !currentSettings.apiKey}
+            disabled={loading || !hasApiCredential}
             size="sm"
             variant="gold"
           >
@@ -340,7 +341,7 @@ ${context2}
                 <span className="w-3 h-3 border-2 border-night border-t-transparent rounded-full animate-spin" />
                 分析中
               </span>
-            ) : currentSettings.apiKey ? '开始合盘分析' : '请先配置 API'}
+            ) : hasApiCredential ? '开始合盘分析' : '请先配置 API'}
           </Button>
         </div>
 
@@ -377,7 +378,7 @@ ${context2}
         />
 
         {/* 未配置提示 */}
-        {!currentSettings.apiKey && !result && (
+        {!hasApiCredential && !result && (
           <div className="text-text-muted text-sm py-8 text-center">
             <div className="text-3xl mb-3 opacity-30">⚭</div>
             请先在设置中配置 AI 模型的 API Key，即可获得双人合盘分析。
@@ -385,7 +386,7 @@ ${context2}
         )}
 
         {/* 未分析提示 */}
-        {currentSettings.apiKey && !result && !loading && (
+        {hasApiCredential && !result && !loading && (
           <div className="text-text-muted text-sm py-8 text-center">
             <div className="text-3xl mb-3 opacity-30">⚭</div>
             输入双方信息并点击「开始合盘分析」

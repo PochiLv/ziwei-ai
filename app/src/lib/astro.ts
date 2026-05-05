@@ -12,6 +12,7 @@
 
 import { astro } from 'iztro'
 import type FunctionalAstrolabe from 'iztro/lib/astro/FunctionalAstrolabe'
+import type { IFunctionalHoroscope } from 'iztro/lib/astro/FunctionalHoroscope'
 
 /* ------------------------------------------------------------
    全局配置初始化 - 文墨天机标准
@@ -37,6 +38,8 @@ export interface BirthInfo {
   fixLeap?: boolean
 }
 
+export type HoroscopeScope = 'decadal' | 'yearly' | 'monthly' | 'daily'
+
 /* ------------------------------------------------------------
    时辰索引转换
    iztro 时辰: 0=早子(00-01), 1=丑, ..., 11=亥, 12=晚子(23-00)
@@ -60,6 +63,14 @@ export function generateChart(info: BirthInfo): FunctionalAstrolabe {
   const genderName = gender === 'male' ? '男' : '女'
 
   return astro.bySolar(dateStr, timeIndex, genderName, fixLeap)
+}
+
+export function getHoroscope(
+  chart: FunctionalAstrolabe,
+  date: string | Date,
+  hour = 12
+): IFunctionalHoroscope {
+  return chart.horoscope(date, hourToTimeIndex(hour))
 }
 
 /* ------------------------------------------------------------
@@ -91,4 +102,4 @@ export function getShichenOptions() {
    导出类型
    ------------------------------------------------------------ */
 
-export type { FunctionalAstrolabe }
+export type { FunctionalAstrolabe, IFunctionalHoroscope as FunctionalHoroscope }

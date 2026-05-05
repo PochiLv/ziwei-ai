@@ -1,19 +1,12 @@
 /* ============================================================
    命盘可视化组件
-   对齐文墨天机标准：
-   - 完整星曜 + 亮度（庙旺平陷）
-   - 宫干 + 大限范围
-   - 博士/长生十二神 + 杂曜
-   - 命主/身主 + 纳音五行
+   清爽高对比盘面 + 运限叠盘
    ============================================================ */
 
 import { useState } from 'react'
 import { useChartStore } from '@/stores'
-import type { FunctionalAstrolabe } from '@/lib/astro'
-
-/* ------------------------------------------------------------
-   十二宫位置映射
-   ------------------------------------------------------------ */
+import type { FunctionalAstrolabe, FunctionalHoroscope, HoroscopeScope } from '@/lib/astro'
+import type { HoroscopeItem } from 'iztro/lib/data/types'
 
 const PALACE_POSITIONS: Record<string, { row: number; col: number }> = {
   '巳': { row: 0, col: 0 }, '午': { row: 0, col: 1 },
@@ -23,10 +16,6 @@ const PALACE_POSITIONS: Record<string, { row: number; col: number }> = {
   '寅': { row: 3, col: 0 }, '丑': { row: 3, col: 1 },
   '子': { row: 3, col: 2 }, '亥': { row: 3, col: 3 },
 }
-
-/* ------------------------------------------------------------
-   纳音五行表（六十甲子）
-   ------------------------------------------------------------ */
 
 const NAYIN_TABLE: Record<string, string> = {
   '甲子': '海中金', '乙丑': '海中金', '丙寅': '炉中火', '丁卯': '炉中火',
@@ -46,32 +35,25 @@ const NAYIN_TABLE: Record<string, string> = {
   '庚申': '石榴木', '辛酉': '石榴木', '壬戌': '大海水', '癸亥': '大海水',
 }
 
-function getNayin(ganZhi: string): string {
-  return NAYIN_TABLE[ganZhi] || ''
-}
-
-/* ------------------------------------------------------------
-   亮度映射
-   ------------------------------------------------------------ */
-
-const BRIGHTNESS_MAP: Record<string, string> = {
-  '庙': '庙', '旺': '旺', '得': '得', '利': '利',
-  '平': '平', '不': '不', '陷': '陷',
-}
-
 const BRIGHTNESS_STYLE: Record<string, string> = {
-  '庙': 'text-fortune',
-  '旺': 'text-gold',
-  '得': 'text-star-light',
-  '利': 'text-star-light',
-  '平': 'text-text-muted',
-  '不': 'text-misfortune/70',
-  '陷': 'text-misfortune',
+  '庙': 'text-emerald-700',
+  '旺': 'text-amber-700',
+  '得': 'text-sky-700',
+  '利': 'text-sky-700',
+  '平': 'text-slate-500',
+  '不': 'text-rose-600',
+  '陷': 'text-rose-700',
 }
 
-/* ------------------------------------------------------------
-   数据类型
-   ------------------------------------------------------------ */
+const MUTAGEN_LABELS = ['禄', '权', '科', '忌'] as const
+const SCOPE_LABEL: Record<HoroscopeScope, string> = {
+  decadal: '大限',
+  yearly: '流年',
+  monthly: '流月',
+  daily: '流日',
+}
+
+const SANFANG_LABELS = ['本宫', '三方', '三方', '对宫'] as const
 
 interface StarData {
   name: string
@@ -79,13 +61,18 @@ interface StarData {
   mutagen?: string
 }
 
+interface ExtraStarData {
+  name?: string
+}
+
 interface PalaceData {
+  index: number
   name: string
   stem: string
   branch: string
   majorStars: StarData[]
   minorStars: StarData[]
-  adjectiveStars: string[]  // 杂曜
+  adjectiveStars: string[]
   decadal: { range: [number, number] }
   boshi12: string
   changsheng12: string
@@ -93,57 +80,119 @@ interface PalaceData {
   isBody: boolean
 }
 
-/* ------------------------------------------------------------
-   星曜标签组件 - 带亮度和四化
-   ------------------------------------------------------------ */
-
-interface StarTagProps {
-  star: StarData
-  showBrightness?: boolean
+interface FlowOverlay {
+  scope: HoroscopeScope
+  item: HoroscopeItem
+  palaceName?: string
+  stars: string[]
+  mutagens: Array<{ star: string; label: string }>
+  isActivePalace: boolean
 }
 
-function StarTag({ star, showBrightness = true }: StarTagProps) {
-  const { name, brightness, mutagen } = star
-  const hasMutagen = !!mutagen
-  const brightnessChar = brightness ? BRIGHTNESS_MAP[brightness] || '' : ''
-  const brightnessStyle = brightness ? BRIGHTNESS_STYLE[brightness] || '' : ''
+interface ChartDisplayProps {
+  horoscope?: FunctionalHoroscope | null
+  activeScope?: HoroscopeScope
+}
 
+function getNayin(ganZhi: string): string {
+  return NAYIN_TABLE[ganZhi] || ''
+}
+
+function getHoroscopeItem(
+  horoscope: FunctionalHoroscope | null | undefined,
+  scope: HoroscopeScope
+): HoroscopeItem | null {
+  if (!horoscope) return null
+  return horoscope[scope]
+}
+
+function getFlowOverlay(
+  horoscope: FunctionalHoroscope | null | undefined,
+  scope: HoroscopeScope,
+  palaceIndex: number
+): FlowOverlay | null {
+  const item = getHoroscopeItem(horoscope, scope)
+  if (!item) return null
+
+  const stars = (item.stars?.[palaceIndex] || []).map((star) => String(star.name))
+  const mutagens = item.mutagen.map((star, index) => ({
+    star: String(star),
+    label: MUTAGEN_LABELS[index] || '',
+  })).filter((entry) => entry.label)
+
+  return {
+    scope,
+    item,
+    palaceName: item.palaceNames[palaceIndex] ? String(item.palaceNames[palaceIndex]) : undefined,
+    stars,
+    mutagens,
+    isActivePalace: item.index === palaceIndex,
+  }
+}
+
+function getSanfangIndicesByBranch(palaces: PalaceData[], activePalace: PalaceData): number[] {
+  const groups = [
+    ['申', '子', '辰'],
+    ['寅', '午', '戌'],
+    ['亥', '卯', '未'],
+    ['巳', '酉', '丑'],
+  ]
+  const group = groups.find((branches) => branches.includes(activePalace.branch)) || []
+  const sanhe = group
+    .map((branch) => palaces.find((palace) => palace.branch === branch)?.index)
+    .filter((index): index is number => typeof index === 'number')
+  const opposite = palaces.find((palace) => palace.index === (activePalace.index + 6) % 12)?.index
+
+  return Array.from(new Set([
+    activePalace.index,
+    ...sanhe.filter((index) => index !== activePalace.index),
+    ...(typeof opposite === 'number' ? [opposite] : []),
+  ]))
+}
+
+function getCenterEdgePoint(palace: PalaceData): { x: number; y: number } {
+  const pos = PALACE_POSITIONS[palace.branch]
+  const row = pos.row
+  const col = pos.col
+  const horizontalX = [0, 25, 75, 100][col] ?? 50
+
+  if (row === 0) return { x: horizontalX, y: 0 }
+  if (row === 3) return { x: horizontalX, y: 100 }
+  if (col === 0) return { x: 0, y: (row - 1) * 50 + 25 }
+  return { x: 100, y: (row - 1) * 50 + 25 }
+}
+
+function StarText({ star, strong = false }: { star: StarData; strong?: boolean }) {
+  const brightnessStyle = star.brightness ? BRIGHTNESS_STYLE[star.brightness] || '' : ''
   const mutagenStyle = {
-    '禄': 'bg-gradient-to-r from-fortune/20 to-fortune/10 text-fortune',
-    '权': 'bg-gradient-to-r from-gold/20 to-gold/10 text-gold',
-    '科': 'bg-gradient-to-r from-star/20 to-star/10 text-star-light',
-    '忌': 'bg-gradient-to-r from-misfortune/20 to-misfortune/10 text-misfortune',
-  }[mutagen || ''] || ''
+    '禄': 'text-emerald-700',
+    '权': 'text-amber-700',
+    '科': 'text-sky-700',
+    '忌': 'text-rose-700',
+  }[star.mutagen || ''] || (strong ? 'text-indigo-700' : 'text-slate-700')
 
   return (
-    <span
-      className={`
-        inline-flex items-center gap-0.5 text-[11px] px-1 py-0.5 rounded
-        transition-all duration-200
-        ${hasMutagen ? mutagenStyle + ' font-medium' : 'bg-white/5 text-text-secondary hover:bg-white/10'}
-      `}
-    >
-      {name}
-      {showBrightness && brightnessChar && (
-        <span className={`text-[9px] ${brightnessStyle}`}>{brightnessChar}</span>
+    <span className={`mr-2 inline-block font-semibold leading-5 ${mutagenStyle}`}>
+      {star.name}
+      {star.brightness && (
+        <span className={`ml-0.5 text-xs ${brightnessStyle}`}>{star.brightness}</span>
       )}
-      {mutagen && <span className="text-[9px]">{mutagen}</span>}
+      {star.mutagen && <span className="ml-0.5 text-xs">{star.mutagen}</span>}
     </span>
   )
 }
 
-/* ------------------------------------------------------------
-   宫位卡片组件
-   ------------------------------------------------------------ */
-
 interface PalaceCardProps extends PalaceData {
+  flowOverlay: FlowOverlay | null
+  sanfangLabel?: string
   isSelected?: boolean
+  isSanfang?: boolean
   onClick?: () => void
 }
 
 function PalaceCard({
   name, stem, branch, majorStars, minorStars, adjectiveStars, decadal,
-  boshi12, changsheng12, isLife, isBody, isSelected, onClick
+  boshi12, changsheng12, isLife, isBody, isSelected, isSanfang, sanfangLabel, flowOverlay, onClick,
 }: PalaceCardProps) {
   const decadalRange = decadal?.range ? `${decadal.range[0]}-${decadal.range[1]}` : ''
 
@@ -151,267 +200,321 @@ function PalaceCard({
     <div
       onClick={onClick}
       className={`
-        group relative p-2 lg:p-3 h-full min-h-[130px] lg:min-h-[170px] flex flex-col
-        bg-white/[0.03] backdrop-blur-sm
-        border border-white/[0.06] rounded-xl
-        transition-all duration-300 cursor-pointer
-        hover:bg-white/[0.06] hover:border-white/[0.12]
-        ${isLife ? 'ring-1 ring-gold/50 bg-gold/[0.03]' : ''}
-        ${isBody ? 'ring-1 ring-star/50 bg-star/[0.03]' : ''}
-        ${isSelected ? 'ring-2 ring-star' : ''}
+        relative z-20 flex h-full min-h-[104px] cursor-pointer flex-col border bg-white p-1.5
+        text-slate-700 transition-all duration-200 hover:border-slate-400
+        ${isSelected ? 'border-rose-300 bg-rose-50/20 shadow-[inset_0_0_0_2px_rgba(244,63,94,0.16)]' : 'border-slate-200'}
+        ${isSanfang && !isSelected ? 'border-rose-100 bg-rose-50/10' : ''}
+        ${isLife ? 'shadow-[inset_3px_0_0_rgba(180,83,9,0.75)]' : ''}
+        ${isBody ? 'ring-1 ring-sky-200' : ''}
       `}
     >
-      {/* 宫位头部: 宫干支 + 宫名 + 大限 */}
-      <div className="flex items-center justify-between mb-1.5 text-[10px]">
-        <span className="text-text-muted font-mono">{stem}{branch}</span>
-        <div className="flex items-center gap-1">
-          {decadalRange && (
-            <span className="text-star-light/60 font-mono">{decadalRange}</span>
-          )}
-          <span className={`
-            px-1 py-0.5 rounded font-medium
-            ${isLife ? 'bg-gold/20 text-gold' : ''}
-            ${isBody ? 'bg-star/20 text-star-light' : ''}
-            ${!isLife && !isBody ? 'text-text-secondary' : ''}
-          `}>
-            {name}
-          </span>
-        </div>
-      </div>
-
-      {/* 主星 */}
-      <div className="flex flex-wrap gap-0.5 mb-1">
-        {majorStars.map((star, i) => (
-          <StarTag key={i} star={star} />
-        ))}
-      </div>
-
-      {/* 辅星 */}
-      <div className="flex flex-wrap gap-0.5 mb-1">
-        {minorStars.map((star, i) => (
-          <StarTag key={i} star={star} showBrightness={false} />
-        ))}
-      </div>
-
-      {/* 杂曜 */}
-      {adjectiveStars.length > 0 && (
-        <div className="flex flex-wrap gap-0.5 mb-1 flex-1">
-          {adjectiveStars.map((name, i) => (
-            <span key={i} className="text-[9px] px-1 py-0.5 rounded bg-white/[0.03] text-text-muted/70">
-              {name}
-            </span>
-          ))}
-        </div>
+      {sanfangLabel && (
+        <span className="absolute left-1/2 top-1 -translate-x-1/2 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+          {sanfangLabel}
+        </span>
       )}
 
-      {/* 底部: 十二神 */}
-      <div className="flex justify-between text-[9px] text-text-muted/60 mt-auto pt-1 border-t border-white/[0.04]">
-        <span>{changsheng12}</span>
-        <span>{boshi12}</span>
+      <div className="grid flex-1 grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)] gap-1 text-[12px]">
+        <div className="min-w-0 pr-1">
+          <div className="min-h-[28px] pt-1 leading-4">
+            {majorStars.map((star, i) => (
+              <StarText key={`${star.name}-${i}`} star={star} strong />
+            ))}
+          </div>
+
+          <div className="mt-0.5 text-[11px] leading-4 text-slate-600">
+            {flowOverlay && (
+              <>
+                <span className="mr-1 text-violet-600">{SCOPE_LABEL[flowOverlay.scope]}</span>
+                {flowOverlay.stars.map((star) => (
+                  <span key={star} className="mr-1 text-sky-600">{star}</span>
+                ))}
+              </>
+            )}
+          </div>
+
+          <div className="mt-1 text-[11px] leading-4 text-green-700">
+            <span className="mr-2 text-lime-700">{changsheng12}</span>
+            <span>{boshi12}</span>
+          </div>
+        </div>
+
+        <div className="min-w-0 text-right text-[10px] leading-4">
+          <div className="min-h-[28px] text-slate-500">
+            {minorStars.slice(0, 5).map((star, i) => (
+              <span key={`${star.name}-${i}`} className="ml-1 inline-block">
+                {star.name}
+                {star.brightness && <span className="text-[10px]">{star.brightness}</span>}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-0.5 text-slate-400">
+            {adjectiveStars.slice(0, 6).map((star, i) => (
+              <span key={`${star}-${i}`} className="ml-1 inline-block">{star}</span>
+            ))}
+          </div>
+
+          <div className="mt-0.5 text-slate-500">
+            {flowOverlay?.mutagens.map((entry) => (
+              <span key={`${entry.star}-${entry.label}`} className="ml-1 inline-block text-fuchsia-600">
+                {entry.star}{entry.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-end justify-between border-t border-slate-100 pt-0.5">
+        <div className="text-[10px] leading-3 text-slate-500">
+          <div className="hidden xl:block">{Array.from({ length: 7 }, (_, i) => decadal.range[0] + i * 12).join(' ')}</div>
+          <div className="font-semibold">{decadalRange}</div>
+        </div>
+
+        <div className="text-right">
+          <div className="font-mono text-[11px] font-semibold text-green-700">{stem}{branch}</div>
+          <div className="text-sm font-bold text-indigo-700">
+            {name}{isBody ? <span className="text-xs">·身</span> : null}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
-/* ------------------------------------------------------------
-   中央信息区域
-   ------------------------------------------------------------ */
+function SanfangLines({
+  palaces,
+  activeIndex,
+}: {
+  palaces: PalaceData[]
+  activeIndex: number
+}) {
+  const activePalace = palaces.find((palace) => palace.index === activeIndex)
+  if (!activePalace) return null
 
-interface CenterInfoProps {
+  const sanfangPalaces = getSanfangIndicesByBranch(palaces, activePalace)
+    .map((index) => palaces.find((palace) => palace.index === index))
+    .filter((palace): palace is PalaceData => !!palace)
+  const sanhePalaces = sanfangPalaces.filter((palace) => palace.index !== (activeIndex + 6) % 12)
+  const points = sanfangPalaces.map((palace) => getCenterEdgePoint(palace))
+  const activePoint = getCenterEdgePoint(activePalace)
+
+  return (
+    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+      {points.slice(1).map((point, index) => (
+        <line
+          key={`${point.x}-${point.y}-${index}`}
+          x1={activePoint.x}
+          y1={activePoint.y}
+          x2={point.x}
+          y2={point.y}
+          stroke="rgba(220,38,38,0.62)"
+          strokeWidth="1.8"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+      <polyline
+        points={sanhePalaces.map((palace) => {
+          const point = getCenterEdgePoint(palace)
+          return `${point.x},${point.y}`
+        }).join(' ')}
+        fill="none"
+        stroke="rgba(220,38,38,0.42)"
+        strokeWidth="1.25"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
+
+function CenterInfo({
+  chart, solarDate, gender, horoscope, activeScope,
+  palaces, activePalaceIndex,
+}: {
   chart: FunctionalAstrolabe
   solarDate: string
   gender: string
-}
-
-function CenterInfo({ chart, solarDate, gender }: CenterInfoProps) {
-  // 计算年柱纳音
+  horoscope?: FunctionalHoroscope | null
+  activeScope: HoroscopeScope
+  palaces: PalaceData[]
+  activePalaceIndex: number
+}) {
   const yearGanZhi = chart.chineseDate?.split(' ')[0] || ''
   const nayin = getNayin(yearGanZhi)
+  const flowItem = getHoroscopeItem(horoscope, activeScope)
 
   return (
-    <div className="
-      relative h-full min-h-[280px] lg:min-h-[360px] p-3 lg:p-4
-      flex flex-col items-center justify-center
-      bg-gradient-to-br from-white/[0.04] to-white/[0.02]
-      backdrop-blur-md border border-white/[0.08] rounded-xl
-    ">
-      {/* 背景装饰 */}
-      <div className="absolute inset-0 opacity-[0.02]">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border-2 border-white" />
-      </div>
-
-      {/* 标题 */}
-      <h3 className="
-        text-lg lg:text-xl font-semibold mb-3
-        bg-gradient-to-r from-gold via-gold-light to-gold bg-clip-text text-transparent
-      " style={{ fontFamily: 'var(--font-serif)' }}>
-        紫微斗数命盘
-      </h3>
-
-      {/* 信息列表 */}
-      <div className="text-xs lg:text-sm text-text-secondary space-y-1.5 text-center">
-        <p><span className="text-text-muted">阳历</span> <span className="text-text">{solarDate}</span></p>
-        <p><span className="text-text-muted">农历</span> <span className="text-text">{chart.lunarDate}</span></p>
-        <p><span className="text-text-muted">干支</span> <span className="text-text font-mono">{chart.chineseDate}</span></p>
-        <p><span className="text-text-muted">时辰</span> <span className="text-text">{chart.time} {chart.timeRange}</span></p>
-        <p><span className="text-text-muted">性别</span> <span className="text-text">{gender}</span></p>
+    <div className="relative z-0 flex h-full min-h-[210px] overflow-hidden border border-slate-200 bg-white/70 text-left">
+      <SanfangLines palaces={palaces} activeIndex={activePalaceIndex} />
+      <div className="relative z-10 flex w-full flex-col justify-between bg-white/45 p-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[13px] leading-5 text-slate-700">
+        <span className="text-slate-400">四柱</span>
+        <span className="font-mono text-green-700">{chart.chineseDate}</span>
+        <span className="text-slate-400">阳历</span>
+        <span className="text-green-700">{solarDate}</span>
+        <span className="text-slate-400">农历</span>
+        <span className="text-green-700">{chart.lunarDate}</span>
+        <span className="text-slate-400">时辰</span>
+        <span className="text-green-700">{chart.time} {chart.timeRange}</span>
+        <span className="text-slate-400">生肖</span>
+        <span className="text-green-700">{chart.zodiac}</span>
+        <span className="text-slate-400">星座</span>
+        <span className="text-green-700">{chart.sign}</span>
+        <span className="text-slate-400">命主</span>
+        <span className="text-green-700">{chart.soul}</span>
+        <span className="text-slate-400">身主</span>
+        <span className="text-green-700">{chart.body}</span>
+        <span className="text-slate-400">命宫</span>
+        <span className="text-green-700">{chart.earthlyBranchOfSoulPalace}</span>
+        <span className="text-slate-400">身宫</span>
+        <span className="text-green-700">{chart.earthlyBranchOfBodyPalace}</span>
+        <span className="text-slate-400">性别</span>
+        <span className="text-green-700">{gender}</span>
         {nayin && (
-          <p><span className="text-text-muted">纳音</span> <span className="text-gold">{nayin}</span></p>
+          <>
+            <span className="text-slate-400">纳音</span>
+            <span className="text-green-700">{nayin}</span>
+          </>
         )}
       </div>
 
-      {/* 五行局 + 命主身主 */}
-      <div className="mt-3 pt-3 border-t border-white/[0.06] w-full">
-        <div className="flex justify-center gap-2 mb-2">
-          <span className="
-            px-2 py-0.5 rounded-full text-xs
-            bg-gradient-to-r from-star/20 to-gold/20
-            text-star-light font-medium border border-star/20
-          ">
-            {chart.fiveElementsClass}
-          </span>
-        </div>
-        <div className="flex justify-center gap-4 text-xs">
-          <p><span className="text-text-muted">命主</span> <span className="text-gold">{chart.soul}</span></p>
-          <p><span className="text-text-muted">身主</span> <span className="text-star-light">{chart.body}</span></p>
-        </div>
-        <div className="flex justify-center gap-4 text-xs mt-1">
-          <p><span className="text-text-muted">生肖</span> <span className="text-text">{chart.zodiac}</span></p>
-          <p><span className="text-text-muted">星座</span> <span className="text-text">{chart.sign}</span></p>
-        </div>
+      <div className="mt-2 text-[13px] text-slate-600">
+        {flowItem && (
+          <>
+            <div className="font-semibold text-indigo-700">
+              {SCOPE_LABEL[activeScope]} {flowItem.heavenlyStem}{flowItem.earthlyBranch}
+            </div>
+            <div className="mt-1">
+              四化：{flowItem.mutagen.map((star, index) => `${star}${MUTAGEN_LABELS[index]}`).join('、')}
+            </div>
+          </>
+        )}
+        <div className="mt-1 text-xs italic text-slate-300">Powered by iztro</div>
+      </div>
       </div>
     </div>
   )
 }
 
-/* ------------------------------------------------------------
-   解析命盘数据 - 完整版
-   ------------------------------------------------------------ */
-
 function parsePalaces(chart: FunctionalAstrolabe): PalaceData[] {
-  return (chart.palaces || []).map((palace) => {
-    // 主星（带亮度和四化）
-    const majorStars: StarData[] = (palace.majorStars || []).map((s) => ({
-      name: s.name as string,
-      brightness: s.brightness as string | undefined,
-      mutagen: s.mutagen as string | undefined,
+  return (chart.palaces || []).map((palace, index) => {
+    const majorStars: StarData[] = (palace.majorStars || []).map((star) => ({
+      name: String(star.name),
+      brightness: star.brightness ? String(star.brightness) : undefined,
+      mutagen: star.mutagen ? String(star.mutagen) : undefined,
     }))
 
-    // 辅星（完整，带亮度）
-    const minorStars: StarData[] = (palace.minorStars || []).map((s) => ({
-      name: s.name as string,
-      brightness: s.brightness as string | undefined,
-      mutagen: s.mutagen as string | undefined,
+    const minorStars: StarData[] = (palace.minorStars || []).map((star) => ({
+      name: String(star.name),
+      brightness: star.brightness ? String(star.brightness) : undefined,
+      mutagen: star.mutagen ? String(star.mutagen) : undefined,
     }))
 
-    // 杂曜
-    const adjectiveStars: string[] = ((palace as any).adjectiveStars || []).map(
-      (s: any) => s.name as string
-    )
+    const palaceWithExtras = palace as typeof palace & { adjectiveStars?: ExtraStarData[] }
+    const adjectiveStars = (palaceWithExtras.adjectiveStars || [])
+      .map((star) => String(star.name || ''))
+      .filter(Boolean)
 
     return {
-      name: palace.name as string,
-      stem: palace.heavenlyStem as string,
-      branch: palace.earthlyBranch as string,
+      index,
+      name: String(palace.name),
+      stem: String(palace.heavenlyStem),
+      branch: String(palace.earthlyBranch),
       majorStars,
       minorStars,
       adjectiveStars,
       decadal: palace.decadal as { range: [number, number] },
-      boshi12: palace.boshi12 as string || '',
-      changsheng12: palace.changsheng12 as string || '',
+      boshi12: String(palace.boshi12 || ''),
+      changsheng12: String(palace.changsheng12 || ''),
       isLife: palace.name === '命宫',
       isBody: palace.isBodyPalace === true,
     }
   })
 }
 
-/* ------------------------------------------------------------
-   主命盘组件
-   ------------------------------------------------------------ */
-
-export function ChartDisplay() {
+export function ChartDisplay({ horoscope, activeScope = 'decadal' }: ChartDisplayProps) {
   const { chart, birthInfo } = useChartStore()
-  const [selectedPalace, setSelectedPalace] = useState<string | null>(null)
+  const [selectedPalaceIndex, setSelectedPalaceIndex] = useState<number | null>(null)
 
   if (!chart || !birthInfo) return null
 
   const palaceData = parsePalaces(chart)
   const grid: (PalaceData | null)[][] = Array(4).fill(null).map(() => Array(4).fill(null))
 
-  palaceData.forEach((p) => {
-    const pos = PALACE_POSITIONS[p.branch]
-    if (pos) grid[pos.row][pos.col] = p
+  palaceData.forEach((palace) => {
+    const pos = PALACE_POSITIONS[palace.branch]
+    if (pos) grid[pos.row][pos.col] = palace
   })
 
   const solarDate = `${birthInfo.year}年${birthInfo.month}月${birthInfo.day}日`
   const gender = birthInfo.gender === 'male' ? '男' : '女'
+  const lifePalace = palaceData.find((palace) => palace.isLife) || palaceData[0]
+  const activeIndex = selectedPalaceIndex ?? lifePalace.index
+  const activePalace = palaceData.find((palace) => palace.index === activeIndex) || lifePalace
+  const sanfangIndices = getSanfangIndicesByBranch(palaceData, activePalace)
 
   const renderPalace = (palace: PalaceData | null, key: string) => {
     if (!palace) return <div key={key} />
+    const sanfangPosition = sanfangIndices.indexOf(palace.index)
     return (
       <PalaceCard
         key={key}
         {...palace}
-        isSelected={selectedPalace === palace.name}
-        onClick={() => setSelectedPalace(selectedPalace === palace.name ? null : palace.name)}
+        flowOverlay={getFlowOverlay(horoscope, activeScope, palace.index)}
+        isSelected={activeIndex === palace.index}
+        isSanfang={sanfangPosition >= 0}
+        sanfangLabel={sanfangPosition >= 0 ? SANFANG_LABELS[sanfangPosition] : undefined}
+        onClick={() => setSelectedPalaceIndex(activeIndex === palace.index ? null : palace.index)}
       />
     )
   }
 
   return (
-    <div className="
-      relative p-3 lg:p-6
-      bg-gradient-to-br from-white/[0.04] to-transparent
-      backdrop-blur-xl border border-white/[0.08] rounded-2xl
-      shadow-[0_8px_32px_rgba(0,0,0,0.3)]
-      max-w-6xl mx-auto
-    ">
-      {/* 顶部发光线 */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-px bg-gradient-to-r from-transparent via-star/50 to-transparent" />
-
-      {/* 4x4 网格 */}
-      <div className="grid grid-cols-4 gap-1.5 lg:gap-2">
-        {/* Row 0 */}
-        {grid[0].map((p, c) => renderPalace(p, `0-${c}`))}
-
-        {/* Row 1: left + center(2x2) + right */}
+    <div className="mx-auto max-w-[1180px] border border-slate-200 bg-white p-1.5 shadow-sm">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <span className="font-medium text-slate-700">三方四正</span>
+        <span>当前：{palaceData.find((palace) => palace.index === activeIndex)?.name}</span>
+        <span>点击任意宫位切换查看</span>
+      </div>
+      <div className="relative grid grid-cols-4 gap-px bg-slate-200 overflow-hidden">
+        {grid[0].map((palace, col) => renderPalace(palace, `0-${col}`))}
         {renderPalace(grid[1][0], '1-0')}
-        <div className="col-span-2 row-span-2">
-          <CenterInfo chart={chart} solarDate={solarDate} gender={gender} />
+        <div className="relative z-0 col-span-2 row-span-2">
+          <CenterInfo
+            chart={chart}
+            solarDate={solarDate}
+            gender={gender}
+            horoscope={horoscope}
+            activeScope={activeScope}
+            palaces={palaceData}
+            activePalaceIndex={activeIndex}
+          />
         </div>
         {renderPalace(grid[1][3], '1-3')}
-
-        {/* Row 2: left + right (center already spans) */}
         {renderPalace(grid[2][0], '2-0')}
         {renderPalace(grid[2][3], '2-3')}
-
-        {/* Row 3 */}
-        {grid[3].map((p, c) => renderPalace(p, `3-${c}`))}
+        {grid[3].map((palace, col) => renderPalace(palace, `3-${col}`))}
       </div>
 
-      {/* 图例 */}
-      <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-white/[0.06] text-[10px]">
+      <div className="mt-1.5 flex flex-wrap items-center justify-center gap-4 border-t border-slate-100 pt-1.5 text-[11px] text-slate-500">
         <div className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-gold" />
-          <span className="text-text-muted">命宫</span>
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          <span>命宫</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-star-light" />
-          <span className="text-text-muted">身宫</span>
+          <span className="h-2 w-2 rounded-full bg-sky-500" />
+          <span>身宫</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-fortune">禄</span>
-          <span className="text-gold">权</span>
-          <span className="text-star-light">科</span>
-          <span className="text-misfortune">忌</span>
-          <span className="text-text-muted">四化</span>
+          <span className="text-emerald-700">禄</span>
+          <span className="text-amber-700">权</span>
+          <span className="text-sky-700">科</span>
+          <span className="text-rose-700">忌</span>
+          <span>四化</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-fortune">庙</span>
-          <span className="text-gold">旺</span>
-          <span className="text-text-muted">平</span>
-          <span className="text-misfortune">陷</span>
-          <span className="text-text-muted">亮度</span>
+          <span className="rounded bg-indigo-50 px-1 text-indigo-700">运限</span>
+          <span>{SCOPE_LABEL[activeScope]}叠盘</span>
         </div>
       </div>
     </div>

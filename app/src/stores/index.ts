@@ -106,7 +106,16 @@ export const useContentCacheStore = create<ContentCacheState>()((set) => ({
    设置状态
    ------------------------------------------------------------ */
 
-type ModelProvider = 'kimi' | 'gemini' | 'claude' | 'deepseek' | 'custom'
+type ModelProvider =
+  | 'bailian-openai'
+  | 'bailian-claude'
+  | 'codingplan-openai'
+  | 'codingplan-claude'
+  | 'kimi'
+  | 'gemini'
+  | 'claude'
+  | 'deepseek'
+  | 'custom'
 
 interface ProviderSettings {
   apiKey: string
@@ -140,8 +149,12 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      provider: 'kimi',
+      provider: 'codingplan-openai',
       providerSettings: {
+        'bailian-openai': { ...DEFAULT_PROVIDER_SETTINGS },
+        'bailian-claude': { ...DEFAULT_PROVIDER_SETTINGS },
+        'codingplan-openai': { ...DEFAULT_PROVIDER_SETTINGS },
+        'codingplan-claude': { ...DEFAULT_PROVIDER_SETTINGS },
         kimi: { ...DEFAULT_PROVIDER_SETTINGS },
         gemini: { ...DEFAULT_PROVIDER_SETTINGS },
         claude: { ...DEFAULT_PROVIDER_SETTINGS },

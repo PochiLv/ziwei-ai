@@ -7,13 +7,17 @@ import { useState } from 'react'
 import { useSettingsStore } from '@/stores'
 import { Button, Input, Select } from '@/components/ui'
 import type { ModelProvider } from '@/lib/llm'
-import { PROVIDER_CONFIGS } from '@/lib/llm'
+import { PROVIDER_CONFIGS, requiresClientApiKey } from '@/lib/llm'
 
 /* ------------------------------------------------------------
    厂商选项
    ------------------------------------------------------------ */
 
 const PROVIDER_OPTIONS: Array<{ value: ModelProvider; label: string }> = [
+  { value: 'bailian-openai', label: '百炼按量 (OpenAI 兼容)' },
+  { value: 'bailian-claude', label: '百炼按量 (Claude 兼容)' },
+  { value: 'codingplan-openai', label: 'Coding Plan (OpenAI 兼容)' },
+  { value: 'codingplan-claude', label: 'Coding Plan (Claude 兼容)' },
   { value: 'kimi', label: 'Kimi (月之暗面)' },
   { value: 'gemini', label: 'Gemini (Google)' },
   { value: 'claude', label: 'Claude (Anthropic)' },
@@ -22,6 +26,10 @@ const PROVIDER_OPTIONS: Array<{ value: ModelProvider; label: string }> = [
 ]
 
 const API_DOCS: Record<ModelProvider, string> = {
+  'bailian-openai': 'https://bailian.console.aliyun.com',
+  'bailian-claude': 'https://bailian.console.aliyun.com',
+  'codingplan-openai': 'https://bailian.console.aliyun.com',
+  'codingplan-claude': 'https://bailian.console.aliyun.com',
   kimi: 'https://platform.moonshot.cn',
   gemini: 'https://aistudio.google.com/apikey',
   claude: 'https://console.anthropic.com',
@@ -52,7 +60,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   } = useSettingsStore()
 
   // 当前厂商的配置
-  const currentSettings = providerSettings[provider]
+  const currentSettings = providerSettings[provider] || {
+    apiKey: '',
+    customBaseUrl: '',
+    customModel: '',
+  }
 
   const [localApiKey, setLocalApiKey] = useState(currentSettings.apiKey)
   const [localBaseUrl, setLocalBaseUrl] = useState(currentSettings.customBaseUrl)
@@ -83,7 +95,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   // 实际切换厂商
   const switchToProvider = (newProvider: ModelProvider) => {
     setProvider(newProvider)
-    const newSettings = providerSettings[newProvider]
+    const newSettings = providerSettings[newProvider] || {
+      apiKey: '',
+      customBaseUrl: '',
+      customModel: '',
+    }
     setLocalApiKey(newSettings.apiKey)
     setLocalBaseUrl(newSettings.customBaseUrl)
     setLocalModel(newSettings.customModel)
@@ -128,6 +144,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   // 判断是否有自定义值（用于高亮显示）
   const hasCustomBaseUrl = localBaseUrl.trim() !== ''
   const hasCustomModel = localModel.trim() !== ''
+  const needsClientApiKey = requiresClientApiKey(provider, localBaseUrl.trim() || undefined)
 
   return (
     <div className="glass p-6 w-full max-w-md relative">
@@ -173,7 +190,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
       {/* 横幅提示 */}
       <div className="mb-4 p-3 rounded-lg bg-star/10 border border-star/20 text-sm text-text-secondary">
-        <span className="text-star">ⓘ</span> 使用中转 API？展开下方「高级设置」修改 URL 和模型
+        <span className="text-star">ⓘ</span> 对外网站建议使用百炼按量 API；Coding Plan 入口也已保留，但需要你确认套餐使用范围。
       </div>
 
       <div className="space-y-4">
@@ -186,13 +203,19 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         />
 
         {/* API Key */}
-        <Input
-          label="API Key"
-          type="password"
-          placeholder="输入你的 API Key"
-          value={localApiKey}
-          onChange={(e) => setLocalApiKey(e.target.value)}
-        />
+        {needsClientApiKey ? (
+          <Input
+            label="API Key"
+            type="password"
+            placeholder="输入你的 API Key"
+            value={localApiKey}
+            onChange={(e) => setLocalApiKey(e.target.value)}
+          />
+        ) : (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            当前 Coding Plan 使用服务器配置文件读取 API Key，浏览器端无需填写。
+          </div>
+        )}
 
         {/* API 文档链接 */}
         {docUrl && (
